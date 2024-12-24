@@ -36,17 +36,23 @@ namespace :orders do
   end
 
   def process_batch_with_http(batch)
-    batch.each do |order|
-      response = send_to_external_service
-      if response.code.to_i == 200
-        order.process!
-        puts "Successfully processed Order ##{order.id}"
-      else
-        raise "Failed to process Order ##{order.id}: #{response.body}"
+    threads = []
+      batch.each do |order|
+        threads << Thread.new do
+
+        response = send_to_external_service
+        if response.code.to_i == 200
+          order.process!
+          puts "Successfully processed Order ##{order.id}"
+        else
+          raise "Failed to process Order ##{order.id}: #{response.body}"
+        end
+      rescue StandardError => e
+        Rails.logger.error("Error processing Order ##{order.id}: #{e.message}")
       end
-    rescue StandardError => e
-      Rails.logger.error("Error processing Order ##{order.id}: #{e.message}")
     end
+
+    threads.each(&:join)
   end
 
   def send_to_external_service
@@ -59,4 +65,3 @@ namespace :orders do
     http.request(request)
   end
 end
-
